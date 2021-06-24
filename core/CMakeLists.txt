@@ -109,6 +109,23 @@ foreach(TEST_SOURCE ${TEST_SOURCES})
 endforeach(TEST_SOURCE)
 
 
+set(BUILD_TEST_SOURCES
+	test/build_failures/testFabricEmptyFibers.cpp
+)
+foreach(BUILD_TEST_SOURCE ${BUILD_TEST_SOURCES})
+	get_filename_component(BUILD_TEST_NAME ${BUILD_TEST_SOURCE} NAME_WE)
+	add_executable(${BUILD_TEST_NAME} EXCLUDE_FROM_ALL ${BUILD_TEST_SOURCE})
+	target_link_libraries(${BUILD_TEST_NAME} PUBLIC GTest::GTest GTest::Main core)
+	target_compile_options(${BUILD_TEST_NAME} PRIVATE -Werror -Wall -Wextra -pedantic-errors)
+	target_compile_features(${BUILD_TEST_NAME} PRIVATE cxx_std_17)
+	add_test(NAME ${BUILD_TEST_NAME}
+		COMMAND ${CMAKE_COMMAND} --build . --target ${BUILD_TEST_NAME} --config $<CONFIGURATION>
+		WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+	)
+	set_tests_properties(${BUILD_TEST_NAME} PROPERTIES PASS_REGULAR_EXPRESSION "template template parameter")
+endforeach(BUILD_TEST_SOURCE)
+
+
 ##########################################################
 # Examples
 ##########################################################
