@@ -71,6 +71,7 @@ enable_testing()
 
 set(TEST_SOURCES
 	test/testUdp.cpp
+	test/testUdpFiber.cpp
 )
 
 add_custom_target(asyncio_tests)
