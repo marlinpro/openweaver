@@ -1424,6 +1424,13 @@ void StreamTransport<DelegateType, DatagramTransport>::did_recv_ACK(
 			continue;
 		}
 
+		//TODO: if either of high, low+1 are negative throw encoding error
+		//  https://tools.ietf.org/html/draft-ietf-quic-transport-34#section-19.3.1
+		//Tips	  https://wesmckinney.com/blog/avoid-unsigned-integers/
+		if ( low+1 > high){
+			break;
+		}
+
 		// Get packets within range [low+1, high]
 		auto low_iter = sent_packets.lower_bound(low + 1);
 		auto high_iter = sent_packets.upper_bound(high);
@@ -1475,11 +1482,12 @@ void StreamTransport<DelegateType, DatagramTransport>::did_recv_ACK(
 						fully_acked = false;
 						break;
 					}
-
+					// TODO: Handle delegate->did_send return type for connection continuation
 					delegate->did_send(
 						*this,
 						std::move(iter->data)
 					);
+
 				}
 
 				if(fully_acked) {
@@ -1529,6 +1537,7 @@ void StreamTransport<DelegateType, DatagramTransport>::did_recv_ACK(
 
 				return;
 			}
+
 		}
 
 		high = low;
@@ -1981,7 +1990,10 @@ void StreamTransport<DelegateType, DatagramTransport>::did_recv(
 		// FLUSHCONF
 		case 9: did_recv_FLUSHCONF(std::move(packet));
 		break;
-		// UNKNOWN
+		case 12: did_recv_CLOSE(std::move(packet));
+		break;
+		case 11: did_recv_CLOSECONF(std::move(packet));
+		break;		// UNKNOWN
 		default: SPDLOG_TRACE("UNKNOWN <<< {}", dst_addr.to_string());
 		break;
 	}
@@ -2124,6 +2136,9 @@ int StreamTransport<DelegateType, DatagramTransport>::send(
 
 template<typename DelegateType, template<typename> class DatagramTransport>
 void StreamTransport<DelegateType, DatagramTransport>::close(uint16_t reason) {
+	if( !is_active() )
+		return;
+
 	// Preserve conn ids so retries work
 	auto src_conn_id = this->src_conn_id;
 	auto dst_conn_id = this->dst_conn_id;
@@ -2142,6 +2157,9 @@ void StreamTransport<DelegateType, DatagramTransport>::close(uint16_t reason) {
 
 template<typename DelegateType, template<typename> class DatagramTransport>
 void StreamTransport<DelegateType, DatagramTransport>::close_timer_cb() {
+	if ( !is_active() )
+		return;
+
 	if(state_timer_interval >= 8000) { // Abort on too many retries
 		SPDLOG_DEBUG(
 			"Stream transport {{ Src: {}, Dst: {} }}: Close timeout",
@@ -2175,6 +2193,8 @@ double StreamTransport<DelegateType, DatagramTransport>::get_rtt() {
 
 template<typename DelegateType, template<typename> class DatagramTransport>
 void StreamTransport<DelegateType, DatagramTransport>::skip_timer_cb(RecvStream& stream) {
+	if ( !is_active() )
+		return;
 	if(stream.state_timer_interval >= 64000) { // Abort on too many retries
 		stream.state_timer_interval = 0;
 		SPDLOG_DEBUG(
@@ -2227,6 +2247,8 @@ void StreamTransport<DelegateType, DatagramTransport>::skip_stream(
 
 template<typename DelegateType, template<typename> class DatagramTransport>
 void StreamTransport<DelegateType, DatagramTransport>::flush_timer_cb(SendStream& stream) {
+	if ( !is_active() )
+		return;	
 	if(stream.state_timer_interval >= 64000) { // Abort on too many retries
 		stream.state_timer_interval = 0;
 		SPDLOG_DEBUG(
